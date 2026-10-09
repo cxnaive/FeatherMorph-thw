@@ -22,6 +22,8 @@ const packetEvents = resolve(process.env.FM_PACKETEVENTS_JAR ?? join(seed, 'plug
 const port = Number(process.env.FM_TEST_PORT ?? 25627);
 assert(Number.isInteger(port) && port > 1024 && port <= 65535, 'Invalid FM_TEST_PORT');
 const difficulty = process.env.FM_TEST_DIFFICULTY ?? 'normal';
+const gameplayOnly = process.env.FM_GAMEPLAY_ONLY === 'true';
+assert(!gameplayOnly || difficulty === 'normal', 'Gameplay fixtures require normal difficulty');
 assert(['peaceful', 'normal'].includes(difficulty), 'FM_TEST_DIFFICULTY must be peaceful or normal');
 const data = minecraftData('26.2');
 assert.equal(data?.version.version, 776, 'Native 26.2 protocol data required');
@@ -30,6 +32,7 @@ const run = await mkdtemp(join(tmpdir(), 'feathermorph-26.2-'));
 const report = { status: 'RUNNING', directory: run, protocol: 776, difficulty, checks: [],
   notRun: ['rendered client visuals', 'real client integration mod', 'locator connections between player disguises across regions',
     'third-party plugins', 'all skills and abilities'] };
+if (gameplayOnly) report.scope = 'skills-and-abilities';
 console.log(`Evidence: ${run}`);
 const record = event => appendFileSync(join(run, 'packets.jsonl'), JSON.stringify({ time: Date.now(), ...event }) + '\n');
 const pass = (name, detail) => { report.checks.push({ name, status: 'PASS', detail }); console.log(`PASS ${name}`); };
@@ -277,9 +280,52 @@ async function verifyModProtocols(actor, observer) {
   }
 }
 
+async function verifyGameplay(actor, observer) {
+  await initializeMod(actor, 19);
+  await initializeMod(observer, 17);
+  server.command('op MorphObserver');
+  server.command('tp MorphObserver 3.5 -60 0.5');
+  server.command('time set noon');
+  server.command('weather clear');
+  const skills = ['cow', 'pig', 'pig__gates', 'camel', 'camel_husk', 'nautilus', 'zombie_nautilus', 'dolphin', 'elder_guardian',
+    'enderman', 'creeper', 'guardian', 'guardian__no_target', 'guardian__cancel', 'warden', 'warden__no_target', 'warden__cancel',
+    'evoker__fangs', 'evoker__vex', 'witch', 'blaze', 'ender_dragon', 'llama', 'trader_llama',
+    'shulker', 'shulker__no_target', 'snow_golem', 'wither', 'ghast', 'ghast__cancel', 'breeze'];
+  const abilities = ['breathe_under_water', 'burns_under_sun', 'feather_falling', 'fire_resistance', 'can_fly',
+    'normal_jump_boost', 'night_vision', 'no_fall_damage', 'reduce_fall_damage', 'reduce_magic_damage',
+    'reduce_wither_damage', 'small_jump_boost', 'snowy', 'speed', 'takes_damage_from_water', 'warden_less_aware',
+    'warden', 'chat_override', 'bossbar', 'no_sweet_bush_damage', 'attribute_modify', 'heals_from_entity',
+    'extra_knockback', 'dryout_in_air', 'potion_on_attack', 'spider', 'override_maximum_air', 'permissions'];
+  report.gameplay = [];
+  const selected = process.env.FM_GAMEPLAY_CASES?.split(',');
+  if (selected) report.gameplayFilter = selected;
+  for (const fixture of ['bindings', ...skills.map(name => 'skill_' + name), ...abilities.map(name => 'ability_' + name)]) {
+    if (selected && !selected.includes(fixture)) continue;
+    const token = `gameplay_${++sequence}`;
+    const offset = server.state.output.length;
+    server.command(`fmgameplay ${actor.username} ${token} ${fixture}`);
+    const result = await actor.wait(fixture, () => {
+      const output = server.state.output.slice(offset);
+      if (output.includes(`FM_GAMEPLAY_FAIL ${token} `)) return { fixture, status: 'FAIL' };
+      const match = output.match(new RegExp(`FM_GAMEPLAY_PASS ${token} (\\{[^\\n]+\\})`));
+      return match && JSON.parse(match[1]);
+    }, 60_000);
+    report.gameplay.push(result);
+    if (result.status === 'FAIL') console.error(`FAIL ${fixture}; see server.log`);
+    else pass(fixture, { assertions: result.assertions.length });
+  }
+  assert(!report.gameplay.some(result => result.status === 'FAIL'), 'Gameplay fixtures failed; see server.log');
+  if (selected) return;
+  assert.equal(new Set(report.gameplay.flatMap(result => result.skills)).size, 10, 'Every active skill type exercised');
+  assert.equal(new Set(report.gameplay.flatMap(result => result.abilities)).size, 27, 'Every registered passive ability exercised');
+  report.notRun = report.notRun.filter(name => name !== 'all skills and abilities');
+  report.notRun.push('every custom option/per-form skill and ability combination', 'cross-region skill targets');
+  pass('all ten active skill types and twenty-seven passive ability types');
+}
+
 try {
   await assertPortFree();
-  const built = await exec(join(root, 'gradlew'), ['build', 'upgradeProbeJar', '--no-daemon'],
+  const built = await exec(join(root, 'gradlew'), ['build', 'upgradeProbeJar', ...(gameplayOnly ? ['gameplayProbeJar'] : []), '--no-daemon'],
     { cwd: root, timeout: 300_000, maxBuffer: 10_000_000 });
   await writeFile(join(run, 'build.log'), built.stdout + built.stderr);
   const properties = await readFile(join(root, 'gradle.properties'), 'utf8');
@@ -287,7 +333,7 @@ try {
   const plugin = join(root, 'build/libs', `feathermorph-${projectVersion}-26.2-final.jar`);
   const entries = (await exec('jar', ['tf', plugin])).stdout.split('\n');
   assert(entries.includes('paper-plugin.yml'));
-  assert(!entries.some(path => path.endsWith('UpgradeProbe.class') || /datapacks\/.*README\.md/.test(path)));
+  assert(!entries.some(path => path.endsWith('UpgradeProbe.class') || path.endsWith('GameplayProbe.class') || /datapacks\/.*README\.md/.test(path)));
   const descriptor = (await exec('unzip', ['-p', plugin, 'paper-plugin.yml'])).stdout;
   assert(/api-version: ['"]?26\.2['"]?/.test(descriptor));
   assert(/folia-supported: true/.test(descriptor));
@@ -309,13 +355,20 @@ try {
   await cp(plugin, join(run, 'plugins/FeatherMorph.jar'));
   await cp(packetEvents, join(run, 'plugins/PacketEvents.jar'));
   await cp(join(root, 'build/validation/FeatherMorphUpgradeProbe.jar'), join(run, 'plugins/FeatherMorphUpgradeProbe.jar'));
+  if (gameplayOnly) await cp(join(root, 'build/validation/FeatherMorphGameplayProbe.jar'), join(run, 'plugins/FeatherMorphGameplayProbe.jar'));
+  if (process.env.FM_SKILL_CONFIG_SEED) {
+    await cp(process.env.FM_SKILL_CONFIG_SEED, join(run, 'plugins/FeatherMorph/skills'), { recursive: true });
+    const versionFile = join(run, 'plugins/FeatherMorph/skills/package_version.txt');
+    await writeFile(versionFile, (await readFile(versionFile, 'utf8')).trim());
+    report.skillConfigSeed = process.env.FM_SKILL_CONFIG_SEED;
+  }
   await cp(join(seed, 'plugins/FeatherMorph/mclang'), join(run, 'plugins/FeatherMorph/mclang'), { recursive: true });
   await writeFile(join(run, 'eula.txt'), 'eula=true\n');
   const config = YAML.parse((await exec('unzip', ['-p', plugin, 'config.yml'])).stdout);
   config.root.check_update = false;
   config.root.language.code = 'en_us';
   config.root.language.single_language = true;
-  if (difficulty === 'peaceful') {
+  if (difficulty === 'peaceful' && !gameplayOnly) {
     config.root.bounding_boxes.modify_boxes = true;
     config.root.bounding_boxes.check_space = true;
   }
@@ -331,6 +384,18 @@ try {
   server = startServer();
   await until('server ready', () => { server.check(); return /Done \([\d.]+s\)!/.test(server.state.output); }, 180_000);
   await until('startup runtime probe', () => { server.check(); return server.state.output.includes('FM_PROBE_PASS'); }, 30_000);
+  if (process.env.FM_SKILL_CONFIG_SEED) {
+    const before = JSON.parse(await readFile(join(process.env.FM_SKILL_CONFIG_SEED, 'minecraft/ghast.json'), 'utf8'));
+    const expected = structuredClone(before);
+    const option = expected.settings['morph:launch_projective'];
+    const oldDefault = before.skillId === 'morph:launch_projective' && option.name === 'minecraft:fireball' &&
+      option.speed_multiplier === 1 && option.sound_name === 'entity.ghast.shoot' && option.sound_distance === 35 &&
+      option.warning_sound_name === 'entity.ghast.warn' && option.max_target_distance === 16 && option.delay === 0;
+    if (oldDefault) { option.max_target_distance = 0; option.delay = 16; }
+    assert.deepEqual(JSON.parse(await readFile(join(run, 'plugins/FeatherMorph/skills/minecraft/ghast.json'), 'utf8')), expected);
+    assert.equal((await readFile(join(run, 'plugins/FeatherMorph/skills/package_version.txt'), 'utf8')).trim(), '13');
+    pass(oldDefault ? 'old default ghast option migrated, other settings preserved' : 'custom ghast settings preserved during migration');
+  }
   const metadata = JSON.parse(server.state.output.match(/FM_PROBE_METADATA (\{[^\n]+\})/)[1]);
   report.metadata = metadata;
   pass('six registry lookups and twenty-three runtime metadata indices/serializers');
@@ -354,7 +419,7 @@ try {
   await actor.wait('fixture position', () => actor.state.position.x === 0.5 && actor.state.position.z === 0.5);
   await observer.wait('fixture position', () => observer.state.position.x === 3.5 && observer.state.position.z === 0.5);
   const forms = ['cow', 'pig', 'chicken', 'cat', 'wolf', 'sheep', 'mooshroom', 'nautilus', 'evoker', 'slime', 'magma_cube', 'sulfur_cube'];
-  for (const type of forms) {
+  for (const type of (gameplayOnly ? [] : forms)) {
     server.command(`fm manage grant MorphActor minecraft:${type}`);
   }
   await delay(1000);
@@ -363,7 +428,7 @@ try {
     assert.equal((await playerState()).id, '@none');
     for (const type of peacefulBlocked) await expectPeacefulDenial(actor, observer, type);
   }
-  for (const type of forms) {
+  for (const type of (gameplayOnly ? [] : forms)) {
     if (difficulty === 'peaceful' && peacefulBlocked.includes(type)) continue;
     const offset = observer.state.events.length;
     actor.command(`/morph minecraft:${type}` + (['slime', 'magma_cube'].includes(type) ? ' [slime_magma/size=3]' : ''));
@@ -416,7 +481,8 @@ try {
     pass(`/unmorph after ${type} restores player packets`);
     await delay(300);
   }
-  await verifyModProtocols(actor, observer);
+  if (gameplayOnly) await verifyGameplay(actor, observer);
+  else await verifyModProtocols(actor, observer);
   actor.check();
   observer.check();
   report.status = 'PASS';

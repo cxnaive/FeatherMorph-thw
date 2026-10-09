@@ -77,3 +77,40 @@ other exceptions, FeatherMorph warnings/errors, and forced shutdown fail the run
 The probe is console-only and is not included in the production artifact. It is
 specific to the modified Lophine core whose restored waypoint implementation is
 being evaluated. Pure Paper or Folia are not interchangeable test targets here.
+
+## Skills and Abilities
+
+```bash
+cd validation/26.2/automation
+FM_GAMEPLAY_ONLY=true npm run validate
+FM_GAMEPLAY_ONLY=true FM_GAMEPLAY_CASES=skill_ghast,skill_warden,ability_chat_override npm run validate
+```
+
+This mode builds `gameplayProbeJar` separately against the shaded production JAR,
+then exercises all ten effective active skill types, None, and all 27 registered
+passive ability types in normal difficulty. The full matrix contains 60 fixtures,
+including all generated default option parsers, permission/cooldown/spectator/event
+gates, wet/dry conditions, missing targets, delayed cancellation, and unmorph cleanup.
+Filtered runs retain incomplete coverage in `notRun` and do not assert full coverage.
+
+Active skills execute through the permission-checking API on a real player in its
+owner region. Targets, summoned entities, projectiles, health, potion effects,
+velocity, attributes, flight, air, fire, snow, and bossbars are real server objects.
+Explosion terrain damage is suppressed by the test listener to preserve the fixture.
+Damage-reduction, attack-secondary-effect, vibration, anger, and chat listener tests
+dispatch constructed Bukkit/Paper events through the registered event bus. Those
+cases test plugin listener behavior, not the full natural event-generation path.
+This does not cover every custom option/per-form combination or cross-region targets.
+
+The runner can also copy a test skill-config seed before startup and verify its
+migration. These fixtures contain the old generated ghast option and a customized
+option; package version files are normalized to the production writer's format.
+
+```bash
+FM_SKILL_CONFIG_SEED="$PWD/../gameplay/migration/default" npm run validate
+FM_TEST_DIFFICULTY=peaceful FM_SKILL_CONFIG_SEED="$PWD/../gameplay/migration/custom" npm run validate
+```
+
+See [the gameplay run record](runs/2026-10-10-gameplay.md) for results and fixes.
+Representative actual Fabric-client skill and passive synchronization checks live
+in `../FeatherMorphClient/validation/26.2` relative to the repository root.

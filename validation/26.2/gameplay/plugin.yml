@@ -1,0 +1,12 @@
+name: FeatherMorphGameplayProbe
+version: '1.0'
+main: GameplayProbe
+api-version: '26.2'
+folia-supported: true
+depend: [FeatherMorph]
+commands:
+  fmgameplay:
+    permission: fmgameplay.console
+permissions:
+  fmgameplay.console:
+    default: op

@@ -15,6 +15,8 @@ import xyz.nifeather.morph.api.morphs.skills.SkillNames;
 import xyz.nifeather.morph.misc.disguiseProperty.ParseErrorException;
 import xyz.nifeather.morph.skills.DefaultConfigGenerator;
 import xyz.nifeather.morph.skills.options.DashConfiguration;
+import xyz.nifeather.morph.skills.options.ProjectileConfiguration;
+import xyz.nifeather.morph.utilities.DisguiseUtils;
 import xyz.nifeather.morph.storage.DirectoryJsonBasedStorage;
 import xyz.nifeather.morph.storage.MorphJsonBasedStorage;
 
@@ -45,7 +47,7 @@ public class SkillsConfigurationStoreNew extends DirectoryJsonBasedStorage<Skill
             logger.warn("The package version is newer than our implementation! Errors may occur!");
     }
 
-    private static final int TARGET_PACKAGE_VERSION = PackageVersions.DASH;
+    private static final int TARGET_PACKAGE_VERSION = PackageVersions.GHAST_CHARGE;
 
     private void update(int currentVersion)
     {
@@ -205,7 +207,39 @@ public class SkillsConfigurationStoreNew extends DirectoryJsonBasedStorage<Skill
             migrator.accept(EntityType.CAMEL);
         }
 
+        if (currentVersion < PackageVersions.GHAST_CHARGE)
+            migrateGhastCharge();
+
         setPackageVersion(TARGET_PACKAGE_VERSION);
+    }
+
+    private void migrateGhastCharge()
+    {
+        var config = get(EntityType.GHAST.key().asString());
+        if (config == null || !config.getSkillIdentifier().equals(SkillNames.LAUNCH_PROJECTILE))
+            return;
+
+        try
+        {
+            var option = config.readOptions(SkillNames.LAUNCH_PROJECTILE, ProjectileConfiguration.OPTION_HANDLER);
+            // Only repair the old generated option; preserve customized projectile behavior.
+            if (option.entityType() != EntityType.FIREBALL || option.getVectorMultiplier() != 1
+                    || !option.getSoundName().equals("entity.ghast.shoot") || option.getSoundDistance() != 35
+                    || !option.getPreLaunchSoundName().equals("entity.ghast.warn")
+                    || option.getDistanceLimit() != DisguiseUtils.GHAST_EXECUTE_DELAY || option.executeDelay != 0)
+                return;
+
+            var corrected = new ProjectileConfiguration(EntityType.FIREBALL, 1, "entity.ghast.shoot", 35,
+                    0, DisguiseUtils.GHAST_EXECUTE_DELAY).withWarningSound("entity.ghast.warn");
+            config.setOption(SkillNames.LAUNCH_PROJECTILE, ProjectileConfiguration.OPTION_HANDLER, corrected);
+            config.legacy_MobID = EntityType.GHAST.key().asString();
+            save(config);
+            logger.info("Corrected the default ghast projectile charge delay");
+        }
+        catch (ParseErrorException | NullPointerException e)
+        {
+            logger.warn("Unable to read ghast projectile option; preserving its configuration", e);
+        }
     }
 
     private void migratePotionEffect()
@@ -516,5 +550,6 @@ public class SkillsConfigurationStoreNew extends DirectoryJsonBasedStorage<Skill
          * The `dash` skill is introduced for Nautilus / Zombie Nautilus / Camel / Camel Husk
          */
         public static final int DASH = 12;
+        public static final int GHAST_CHARGE = 13;
     }
 }

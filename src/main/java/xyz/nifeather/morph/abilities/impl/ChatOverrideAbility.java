@@ -76,8 +76,9 @@ public class ChatOverrideAbility extends MorphAbility<ChatOverrideOption>
             e.renderer(new MorphChatRenderer(formattable));
         else
         {
-            //noinspection OverrideOnly
-            e.renderer().render(player, state.getServerDisplay(), e.message(), player);
+            var renderer = e.renderer();
+            var display = state.getServerDisplay();
+            e.renderer((source, sourceDisplay, message, viewer) -> renderer.render(source, display, message, viewer));
         }
     }
 

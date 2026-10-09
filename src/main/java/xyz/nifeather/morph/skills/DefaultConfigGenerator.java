@@ -150,7 +150,7 @@ public class DefaultConfigGenerator
                 .setSkillIdentifier(SkillNames.LAUNCH_PROJECTILE)
                 .setSkillCooldown(DisguiseUtils.GHAST_EXECUTE_DELAY + 40)
                 .appendOption(
-                        SkillNames.LAUNCH_PROJECTILE, ProjectileConfiguration.OPTION_HANDLER, new ProjectileConfiguration(EntityType.FIREBALL, 1, "entity.ghast.shoot", 35, DisguiseUtils.GHAST_EXECUTE_DELAY)
+                        SkillNames.LAUNCH_PROJECTILE, ProjectileConfiguration.OPTION_HANDLER, new ProjectileConfiguration(EntityType.FIREBALL, 1, "entity.ghast.shoot", 35, 0, DisguiseUtils.GHAST_EXECUTE_DELAY)
                                 .withWarningSound("entity.ghast.warn")
                 );
 

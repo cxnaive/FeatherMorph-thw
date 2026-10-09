@@ -72,12 +72,14 @@ public class SonicBoomMorphSkill extends DelayedMorphSkill<NoOpConfiguration>
         playSoundToNearbyPlayers(player, 160,
                 Key.key("minecraft", "entity.warden.sonic_boom"), Sound.Source.HOSTILE);
 
+        boolean targetHit = false;
         for (int i = 1; i < maxDistance; i++)
         {
             var locNew = location.clone().add(direction.clone().multiply(i));
 
-            if (entity != null && entity.getLocation().distance(player.getLocation()) <= i)
+            if (!targetHit && entity != null && entity.getLocation().distance(player.getLocation()) <= i)
             {
+                targetHit = true;
                 var record = NmsRecord.of(player, entity);
                 var nmsPlayer = record.nmsPlayer();
                 var nmsEntity = NmsRecord.ofLiving(entity);

@@ -1,0 +1,17 @@
+{
+  "skillCooldown": 100,
+  "skillId": "morph:launch_projective",
+  "abilities": ["morph:can_fly"],
+  "settings": {
+    "morph:can_fly": {"fly_speed": 0.09, "minimum_hunger": 4},
+    "morph:launch_projective": {
+      "name": "minecraft:fireball",
+      "speed_multiplier": 2.0,
+      "sound_name": "entity.ghast.shoot",
+      "sound_distance": 35,
+      "warning_sound_name": "entity.ghast.warn",
+      "max_target_distance": 5,
+      "delay": 7
+    }
+  }
+}

@@ -178,6 +178,22 @@ tasks.register<Jar>("upgradeProbeJar") {
     destinationDirectory = layout.buildDirectory.dir("validation")
 }
 
+val compileGameplayProbe by tasks.registering(JavaCompile::class) {
+    dependsOn(tasks.named("shadowJar"))
+    source("validation/26.2/gameplay")
+    classpath = files(tasks.named<Jar>("shadowJar").flatMap { it.archiveFile }) + sourceSets.main.get().compileClasspath
+    destinationDirectory = layout.buildDirectory.dir("validation/gameplay-classes")
+    options.release = 25
+}
+
+tasks.register<Jar>("gameplayProbeJar") {
+    dependsOn(compileGameplayProbe)
+    from(compileGameplayProbe.flatMap { it.destinationDirectory })
+    from("validation/26.2/gameplay/plugin.yml")
+    archiveFileName = "FeatherMorphGameplayProbe.jar"
+    destinationDirectory = layout.buildDirectory.dir("validation")
+}
+
 paper {
     load = BukkitPluginDescription.PluginLoadOrder.POSTWORLD
     main = "xyz.nifeather.morph.FeatherMorphMain"
@@ -373,7 +389,7 @@ tasks.shadowJar {
 
 // https://stackoverflow.com/a/74848372
 tasks.withType<Jar> {
-    if (name != "upgradeProbeJar")
+    if (name != "upgradeProbeJar" && name != "gameplayProbeJar")
         exclude("plugin.yml")
     from("LICENSE")
 }

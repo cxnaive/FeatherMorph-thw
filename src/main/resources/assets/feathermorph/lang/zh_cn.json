@@ -165,6 +165,7 @@
   "morph.client_version_mismatch_kick" : "<color:red>客户端模组版本不匹配",
   "morph.cooling_down" : "<color:red>请等一会再进行操作",
   "morph.disguise_banned_or_not_supported" : "<color:red>服务器不支持或已禁用此形态",
+  "morph.disguise_not_allowed_in_peaceful" : "<color:red>和平难度下不允许模仿此怪物",
   "morph.disguise_not_defined" : "<color:red>未指定形态",
   "morph.disguise_revealed" : "（已暴露）",
   "morph.disguising_as" : "<icon> 正变形为<what>",

@@ -13,6 +13,7 @@ cd validation/26.2/automation
 npm run protocol:prepare
 npm ci --ignore-scripts
 npm run validate
+FM_TEST_DIFFICULTY=peaceful npm run validate
 ```
 
 Protocol preparation uses verified, pinned upstream minecraft-data sources and
@@ -35,20 +36,34 @@ FM_SERVER_SEED=/path/to/lophine-server FM_TEST_PORT=25628 npm run validate
 `FM_PACKETEVENTS_JAR` overrides the 2.14.0 plugin path, and `FM_JAVA` selects the
 Java executable. The default PacketEvents path is
 `$FM_SERVER_SEED/plugins/packetevents-spigot-2.14.0.jar`.
+`FM_TEST_DIFFICULTY` accepts `normal` (default) or `peaceful`; each invocation
+creates fresh worlds and starts a new server process with empty plugin caches.
 
 The runner builds the release JAR and separate `upgradeProbeJar`, verifies their
-packaging, starts a fresh normal-difficulty flat world, and disables natural mob
-spawning. Twelve real player-command morph/unmorph cycles are checked against
-both an owner-region state probe and observer packets. The probe also compares
+packaging, starts a fresh flat world, and disables natural mob spawning.
+It reads the packaged default configuration as YAML and applies test overrides,
+preserving the current schema version and required options.
+In normal difficulty, twelve real player-command morph/unmorph cycles are checked
+against both an owner-region state probe and observer packets. The probe also compares
 23 metadata declarations with NMS and checks the modified Lophine waypoint API
 in all worlds before bots connect. Normal metadata defaults may be omitted;
 present fields must use native serializers. Slime/magma size 3 is explicitly
 asserted in the received packets.
 
+In peaceful difficulty, the suite enables bounding-box modification and space
+checks. Evoker, slime, and magma cube requests must return the dedicated denial
+message, both before any disguise and while disguised as a cow. The owner-region
+probe verifies that the disguise ID, UUID, health, maximum health, and dimensions
+remain unchanged, and the observer must receive no entity replacement or removal.
+The other nine forms still complete their morph/unmorph cycles, including sulfur
+cube, which vanilla allows in peaceful despite its monster category. The policy
+uses NMS `isAllowedInPeaceful()`, rather than a list of monster names.
+
 The printed temporary directory retains `build.log`, `server.log`,
 `packets.jsonl`, `result.json`, worlds, and generated configuration. A failed run
 still closes bots and stops the server. `result.json` includes artifact SHA-256,
-check results, metadata mappings, shutdown status, and explicit untested cases.
+check results, difficulty, metadata mappings, shutdown status, and explicit
+untested cases.
 Known PacketEvents update-check HTTP 403 warnings are preserved separately;
 other exceptions, FeatherMorph warnings/errors, and forced shutdown fail the run.
 

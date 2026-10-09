@@ -5,6 +5,7 @@ import net.kyori.adventure.text.Component;
 import net.minecraft.world.entity.EntityDimensions;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
+import org.bukkit.Difficulty;
 import org.bukkit.NamespacedKey;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.attribute.AttributeInstance;
@@ -109,6 +110,21 @@ public class VanillaDisguiseProvider extends DefaultDisguiseProvider
     {
         var entityType = disguiseMeta.getEntityType();
 
+        if (entityType == null || entityType == EntityType.PLAYER || !entityType.isAlive())
+        {
+            MessageUtils.send(player, MorphStrings.disguiseBannedOrNotSupportedString());
+            logger.error("Can't disguise player %s because someone is trying to use an illegal mob type: %s(%s)".formatted(player.getName(), disguiseMeta.getIdentifier(), entityType));
+            return false;
+        }
+
+        var nmsType = EntityTypeUtils.getNmsType(entityType);
+        if (player.getWorld().getDifficulty() == Difficulty.PEACEFUL
+                && nmsType != null && !nmsType.isAllowedInPeaceful())
+        {
+            MessageUtils.send(player, MorphStrings.disguiseNotAllowedInPeacefulString());
+            return false;
+        }
+
         // 检查是否有足够的空间
         if (modifyBoundingBoxes.get() && checkSpaceBoundingBox.get())
         {
@@ -121,13 +137,6 @@ public class VanillaDisguiseProvider extends DefaultDisguiseProvider
                 MessageUtils.send(player, MorphStrings.noEnoughSpaceString());
                 return false;
             }
-        }
-
-        if (entityType == null || entityType == EntityType.PLAYER || !entityType.isAlive())
-        {
-            MessageUtils.send(player, MorphStrings.disguiseBannedOrNotSupportedString());
-            logger.error("Can't disguise player %s because someone is trying to use an illegal mob type: %s(%s)".formatted(player.getName(), disguiseMeta.getIdentifier(), entityType));
-            return false;
         }
 
         return super.validateDisguise(player, disguiseMeta, targetEntity);

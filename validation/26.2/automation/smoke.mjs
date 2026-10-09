@@ -13,6 +13,7 @@ import { fileURLToPath } from 'node:url';
 import mc from 'minecraft-protocol';
 import minecraftData from 'minecraft-data';
 import nbt from 'prismarine-nbt';
+import YAML from 'yaml';
 
 const exec = promisify(execFile);
 const root = fileURLToPath(new URL('../../../', import.meta.url));
@@ -20,11 +21,13 @@ const seed = resolve(process.env.FM_SERVER_SEED ?? join(root, '../thw_servers/26
 const packetEvents = resolve(process.env.FM_PACKETEVENTS_JAR ?? join(seed, 'plugins/packetevents-spigot-2.14.0.jar'));
 const port = Number(process.env.FM_TEST_PORT ?? 25627);
 assert(Number.isInteger(port) && port > 1024 && port <= 65535, 'Invalid FM_TEST_PORT');
+const difficulty = process.env.FM_TEST_DIFFICULTY ?? 'normal';
+assert(['peaceful', 'normal'].includes(difficulty), 'FM_TEST_DIFFICULTY must be peaceful or normal');
 const data = minecraftData('26.2');
 assert.equal(data?.version.version, 776, 'Native 26.2 protocol data required');
 const metadataTypes = data.protocol.types.entityMetadataEntry[1].find(field => field.name === 'type').type[1].mappings;
 const run = await mkdtemp(join(tmpdir(), 'feathermorph-26.2-'));
-const report = { status: 'RUNNING', directory: run, protocol: 776, checks: [],
+const report = { status: 'RUNNING', directory: run, protocol: 776, difficulty, checks: [],
   notRun: ['rendered client visuals', 'client integration mod', 'locator connections between player disguises across regions',
     'third-party plugins', 'all skills and abilities'] };
 console.log(`Evidence: ${run}`);
@@ -162,8 +165,8 @@ async function playerState() {
   server.command(`fmprobe MorphActor ${token}`);
   return until('owner-region player state', () => {
     server.check();
-    const match = server.state.output.match(new RegExp(`FM_PROBE_STATE ${token} (\\S+) (\\d+) (\\S+)`));
-    return match && { id: match[1], entityId: Number(match[2]), uuid: match[3] };
+    const match = server.state.output.match(new RegExp(`FM_PROBE_STATE ${token} (\\S+) (\\d+) (\\S+) (\\{[^\\n]+\\})`));
+    return match && { id: match[1], entityId: Number(match[2]), uuid: match[3], metrics: JSON.parse(match[4]) };
   });
 }
 
@@ -178,6 +181,24 @@ async function observedSpawn(observer, offset, type, uuid) {
   return observer.wait(`${type} spawn for ${uuid}`, () => observer.state.events.slice(offset)
     .find(e => e.event === 'spawn_entity' && e.value.type === data.entitiesByName[type].id
       && e.value.objectUUID.toLowerCase() === uuid.toLowerCase())?.value);
+}
+
+async function expectPeacefulDenial(actor, observer, type) {
+  const before = await playerState();
+  assert.equal(before.metrics.difficulty, 'PEACEFUL');
+  const messageOffset = actor.state.messages.length;
+  const packetOffset = observer.state.events.length;
+  actor.command(`/morph minecraft:${type}`);
+  await actor.wait(`${type} peaceful denial`, () => actor.state.messages.slice(messageOffset)
+    .some(message => message.includes('You cannot disguise as this monster on Peaceful difficulty')));
+  await delay(300);
+  const after = await playerState();
+  assert.deepEqual(after, before, `${type} denial must preserve disguise, UUID, health and dimensions`);
+  assert(!observer.state.events.slice(packetOffset).some(event =>
+    (event.event === 'spawn_entity' && event.value.entityId === before.entityId)
+    || (event.event === 'entity_destroy' && event.value.entityIds.includes(before.entityId))),
+  `${type} denial must not replace or remove the observed disguise`);
+  pass(`peaceful rejects ${type} while ${before.id}, preserving state/health/dimensions/packets`, after);
 }
 
 try {
@@ -213,14 +234,21 @@ try {
   await cp(packetEvents, join(run, 'plugins/PacketEvents.jar'));
   await cp(join(root, 'build/validation/FeatherMorphUpgradeProbe.jar'), join(run, 'plugins/FeatherMorphUpgradeProbe.jar'));
   await writeFile(join(run, 'eula.txt'), 'eula=true\n');
-  await writeFile(join(run, 'plugins/FeatherMorph/config.yml'),
-    'root:\n  check_update: false\n  language:\n    code: en_us\n    single_language: true\n');
+  const config = YAML.parse((await exec('unzip', ['-p', plugin, 'config.yml'])).stdout);
+  config.root.check_update = false;
+  config.root.language.code = 'en_us';
+  config.root.language.single_language = true;
+  if (difficulty === 'peaceful') {
+    config.root.bounding_boxes.modify_boxes = true;
+    config.root.bounding_boxes.check_space = true;
+  }
+  await writeFile(join(run, 'plugins/FeatherMorph/config.yml'), YAML.stringify(config));
   const flat = { biome: 'minecraft:plains', layers: [{ block: 'minecraft:bedrock', height: 1 },
     { block: 'minecraft:dirt', height: 2 }, { block: 'minecraft:grass_block', height: 1 }],
     lakes: false, features: false, structure_overrides: [] };
   await writeFile(join(run, 'server.properties'), `server-ip=127.0.0.1\nserver-port=${port}\nonline-mode=false\n` +
     'enforce-secure-profile=false\nmax-players=3\nview-distance=2\nsimulation-distance=2\nspawn-protection=0\n' +
-    `level-type=minecraft:flat\ngenerator-settings=${JSON.stringify(flat)}\nlevel-seed=2602\ndifficulty=normal\n` +
+    `level-type=minecraft:flat\ngenerator-settings=${JSON.stringify(flat)}\nlevel-seed=2602\ndifficulty=${difficulty}\n` +
     'gamemode=creative\nallow-flight=true\nenable-rcon=false\nenable-query=false\n');
   await assertPortFree();
   server = startServer();
@@ -253,7 +281,13 @@ try {
     server.command(`fm manage grant MorphActor minecraft:${type}`);
   }
   await delay(1000);
+  const peacefulBlocked = ['evoker', 'slime', 'magma_cube'];
+  if (difficulty === 'peaceful') {
+    assert.equal((await playerState()).id, '@none');
+    for (const type of peacefulBlocked) await expectPeacefulDenial(actor, observer, type);
+  }
   for (const type of forms) {
+    if (difficulty === 'peaceful' && peacefulBlocked.includes(type)) continue;
     const offset = observer.state.events.length;
     actor.command(`/morph minecraft:${type}` + (['slime', 'magma_cube'].includes(type) ? ' [slime_magma/size=3]' : ''));
     const state = await expectState(`minecraft:${type}`);
@@ -290,6 +324,12 @@ try {
       await observer.wait('reconnect position', () => observer.state.position, 60_000);
       await observedSpawn(observer, 0, type, state.uuid);
       pass('observer reconnect retains cow disguise');
+      if (difficulty === 'peaceful') {
+        const cow = await playerState();
+        assert.equal(cow.metrics.maxHealth, 10, 'cow health scaling enabled');
+        assert(Math.abs(cow.metrics.width - 0.9) < 1e-5, 'cow bounding-box modification enabled');
+        for (const blocked of peacefulBlocked) await expectPeacefulDenial(actor, observer, blocked);
+      }
     }
     await delay(300);
     const restoredOffset = observer.state.events.length;

@@ -1,4 +1,6 @@
+import com.google.gson.JsonObject;
 import org.bukkit.Bukkit;
+import org.bukkit.attribute.Attribute;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.ConsoleCommandSender;
@@ -156,7 +158,15 @@ public final class UpgradeProbe extends JavaPlugin {
                 String id = state == null ? "@none" : (String) state.getClass().getMethod("getDisguiseIdentifier").invoke(state);
                 var wrapper = state == null ? null : state.getClass().getMethod("getDisguiseWrapper").invoke(state);
                 var uuid = wrapper == null ? player.getUniqueId() : wrapper.getClass().getMethod("getVirtualEntityUUID").invoke(wrapper);
-                getLogger().info("FM_PROBE_STATE " + args[1] + " " + id + " " + player.getEntityId() + " " + uuid);
+                var box = player.getBoundingBox();
+                var metrics = new JsonObject();
+                metrics.addProperty("health", player.getHealth());
+                metrics.addProperty("maxHealth", player.getAttribute(Attribute.MAX_HEALTH).getValue());
+                metrics.addProperty("width", box.getWidthX());
+                metrics.addProperty("height", box.getHeight());
+                metrics.addProperty("depth", box.getWidthZ());
+                metrics.addProperty("difficulty", player.getWorld().getDifficulty().name());
+                getLogger().info("FM_PROBE_STATE " + args[1] + " " + id + " " + player.getEntityId() + " " + uuid + " " + metrics);
             } catch (Throwable error) {
                 getLogger().log(Level.SEVERE, "FM_PROBE_FAIL state " + args[1], error);
             }

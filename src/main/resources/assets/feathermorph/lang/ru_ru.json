@@ -39,6 +39,7 @@
   "cape.other": "<color:#dadada>Другое",
   "help.description_manage": "Управление маскировками",
   "morph.skill.difficulty_is_peaceful": "Не работает на сложности Peaceful",
+  "morph.disguise_not_allowed_in_peaceful": "<color:red>Нельзя превращаться в этого монстра на мирной сложности",
   "commands.list_remove_fail_unknown": "<color:red>Не удалось удалить \"<value>\", возможно, его нет в списке...",
   "morph.unmorph_success": "Маскировка снята",
   "morph.head_morph_disabled": "<color:red>Эта функция отключена",

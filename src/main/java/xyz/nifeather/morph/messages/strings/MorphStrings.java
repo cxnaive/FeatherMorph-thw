@@ -163,6 +163,12 @@ public class MorphStrings extends AbstractMorphStrings
                 "<color:red>服务器不支持或已禁用此伪装");
     }
 
+    public static FormattableMessage disguiseNotAllowedInPeacefulString()
+    {
+        return getFormattable(getKey("disguise_not_allowed_in_peaceful"),
+                "<color:red>和平难度下不允许模仿此怪物");
+    }
+
     /**
      * @deprecated Please use {@link MorphStrings#errorWhileDisguisingWithError()} ASAP.
      */

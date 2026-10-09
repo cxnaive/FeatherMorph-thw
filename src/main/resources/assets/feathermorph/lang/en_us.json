@@ -165,6 +165,7 @@
   "morph.client_version_mismatch_kick": "<color:red>Client mod version mismatch",
   "morph.cooling_down": "<color:red>Please wait before disguising again",
   "morph.disguise_banned_or_not_supported": "<color:red>This disguise is not supported or disabled by server",
+  "morph.disguise_not_allowed_in_peaceful": "<color:red>You cannot disguise as this monster on Peaceful difficulty",
   "morph.disguise_not_defined": "<color:red>No disguise specified",
   "morph.disguise_revealed": " (Revealed)",
   "morph.disguising_as": "<icon> Disguising as <what>",

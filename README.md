@@ -1,5 +1,7 @@
 Archived, feel free to fork, although I would suggest making your own, as there aren't many documents about this project :D
 
+This checkout maintains Minecraft 26.2 support with Java 25 and PacketEvents 2.14.0. See [26.2 migration and Lophine compatibility](./docs/26.2-upgrade.md) for the local changes and validation.
+
 ![cover](./assets/cover.png)
 
 <div align="center">
@@ -39,7 +41,7 @@ FeatherMorph requires these things to work:
 To display disguise server-side, we also need these plugins, depending on which plugin version you're on.
 
 #### 2.x
-- [PacketEvents 2.8.0](https://modrinth.com/plugin/packetevents)
+- [PacketEvents 2.14.0](https://modrinth.com/plugin/packetevents)
 
 #### 1.x
 - [ProtocolLib](https://ci.dmulloy2.net/job/ProtocolLib)

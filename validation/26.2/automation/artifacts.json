@@ -1,0 +1,12 @@
+{
+  "wrapper": {
+    "commit": "308134a8020139d49ceb851c97713ae15b745192",
+    "url": "https://codeload.github.com/PrismarineJS/node-minecraft-data/tar.gz/308134a8020139d49ceb851c97713ae15b745192",
+    "sha256": "148bae575a703dd19c13e2105aa2106a5e00030b2b37cef0be1e7e65bfbd776f"
+  },
+  "data": {
+    "commit": "68ea7b59e7aa318be86cf265be45ee1b79572528",
+    "url": "https://codeload.github.com/PrismarineJS/minecraft-data/tar.gz/68ea7b59e7aa318be86cf265be45ee1b79572528",
+    "sha256": "6f71c6e9a338db00109bc451fde7f5a8ff43f60b5701ba2dec26d147a0bbfdc7"
+  }
+}

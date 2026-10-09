@@ -163,11 +163,26 @@ version = "${project.property("project_version")}"
 description = "Yet another disguise plugin, that introduces the morph feature to the server, similar to the MetaMorph mod"
 java.sourceCompatibility = JavaVersion.VERSION_25
 
+val compileUpgradeProbe by tasks.registering(JavaCompile::class) {
+    source("validation/26.2/probe")
+    classpath = sourceSets.main.get().compileClasspath
+    destinationDirectory = layout.buildDirectory.dir("validation/probe-classes")
+    options.release = 25
+}
+
+tasks.register<Jar>("upgradeProbeJar") {
+    dependsOn(compileUpgradeProbe)
+    from(compileUpgradeProbe.flatMap { it.destinationDirectory })
+    from("validation/26.2/probe/plugin.yml")
+    archiveFileName = "FeatherMorphUpgradeProbe.jar"
+    destinationDirectory = layout.buildDirectory.dir("validation")
+}
+
 paper {
     load = BukkitPluginDescription.PluginLoadOrder.POSTWORLD
     main = "xyz.nifeather.morph.FeatherMorphMain"
     bootstrapper = "xyz.nifeather.morph.FeatherMorphBootstrap"
-    apiVersion = "1.21"
+    apiVersion = "26.2"
     authors = listOf("MATRIX-feather")
 
     serverDependencies {
@@ -358,10 +373,15 @@ tasks.shadowJar {
 
 // https://stackoverflow.com/a/74848372
 tasks.withType<Jar> {
-    exclude("plugin.yml")
+    if (name != "upgradeProbeJar")
+        exclude("plugin.yml")
     from("LICENSE")
 }
 
 tasks.withType<JavaCompile>() {
     options.encoding = "UTF-8"
+}
+
+tasks.processResources {
+    exclude("datapacks/**/README.md")
 }

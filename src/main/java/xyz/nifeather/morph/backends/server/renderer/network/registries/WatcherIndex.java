@@ -36,6 +36,7 @@ public class WatcherIndex
         setTypeWatcher(EntityType.ARMOR_STAND, ArmorStandWatcher::new);
         setTypeWatcher(EntityType.SLIME, SlimeWatcher::new);
         setTypeWatcher(EntityType.MAGMA_CUBE, MagmaWatcher::new);
+        setTypeWatcher(EntityType.SULFUR_CUBE, SulfurCubeWatcher::new);
         setTypeWatcher(EntityType.GHAST, GhastWatcher::new);
 
         setTypeWatcher(EntityType.HORSE, HorseWatcher::new);

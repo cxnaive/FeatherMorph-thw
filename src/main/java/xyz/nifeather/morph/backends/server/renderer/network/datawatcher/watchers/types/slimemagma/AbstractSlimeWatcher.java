@@ -3,14 +3,14 @@ package xyz.nifeather.morph.backends.server.renderer.network.datawatcher.watcher
 import net.minecraft.nbt.CompoundTag;
 import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Player;
-import xyz.nifeather.morph.backends.server.renderer.network.datawatcher.watchers.types.LivingEntityWatcher;
+import xyz.nifeather.morph.backends.server.renderer.network.datawatcher.watchers.types.AgeableMobWatcher;
 import xyz.nifeather.morph.backends.server.renderer.network.registries.CustomEntries;
 import xyz.nifeather.morph.backends.server.renderer.network.registries.ValueIndex;
 import xyz.nifeather.morph.misc.disguiseProperty.DisguiseProperties;
 import xyz.nifeather.morph.misc.disguiseProperty.SingleProperty;
 import xyz.nifeather.morph.misc.disguiseProperty.values.SlimeMagmaPropertyCollection;
 
-public class AbstractSlimeWatcher extends LivingEntityWatcher
+public class AbstractSlimeWatcher extends AgeableMobWatcher
 {
     @Override
     protected void initRegistry()

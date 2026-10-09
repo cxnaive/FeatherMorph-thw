@@ -1,0 +1,17 @@
+{
+  "name": "feathermorph-26.2-validation",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "protocol:prepare": "node prepare-protocol-data.mjs",
+    "validate": "node smoke.mjs"
+  },
+  "dependencies": {
+    "minecraft-protocol": "https://codeload.github.com/PrismarineJS/node-minecraft-protocol/tar.gz/0dfb5768b444fd21e45135713edb2ed80279f696",
+    "minecraft-data": "file:cache/minecraft-data-26.2-68ea7b59-308134a8.tgz",
+    "prismarine-nbt": "2.7.0"
+  },
+  "overrides": { "minecraft-data": "$minecraft-data" }
+}

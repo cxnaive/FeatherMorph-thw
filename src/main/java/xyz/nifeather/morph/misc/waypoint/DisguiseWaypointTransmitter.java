@@ -62,7 +62,7 @@ public class DisguiseWaypointTransmitter implements IDisguiseWaypointTransmitter
                 if (!currentWaypointManager.transmitters().contains(this))
                     currentWaypointManager.trackWaypoint(this);
 
-                transmitting = true;
+                transmitting = currentWaypointManager.transmitters().contains(this);
             }
             else
             {

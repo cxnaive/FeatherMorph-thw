@@ -132,3 +132,7 @@ buildNumber.properties
 
 # Common working directory
 run/
+
+# Isolated upgrade validation
+validation/26.2/automation/node_modules/
+validation/26.2/automation/cache/

@@ -4,6 +4,8 @@ import it.unimi.dsi.fastutil.objects.Object2ObjectArrayMap;
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.objects.ObjectSet;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.resources.Identifier;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.entity.Entity;
@@ -82,12 +84,18 @@ public class EntityTypeUtils
 
         if (bukkitType == EntityType.UNKNOWN) return null;
 
-        var result = net.minecraft.world.entity.EntityType.byString(bukkitType.key().asString())
-                .orElse(null);
+        var result = getNmsType(bukkitType.key().asString());
 
         nmsTypeMap.put(bukkitType, result);
 
         return result;
+    }
+
+    @Nullable
+    public static net.minecraft.world.entity.EntityType<?> getNmsType(@NotNull String identifier)
+    {
+        var key = Identifier.tryParse(identifier);
+        return key == null ? null : BuiltInRegistries.ENTITY_TYPE.getOptional(key).orElse(null);
     }
 
     @Nullable
@@ -96,8 +104,7 @@ public class EntityTypeUtils
         var cache = nmsClassMap.getOrDefault(type, null);
         if (cache != null) return cache;
 
-        var nmsType = net.minecraft.world.entity.EntityType.byString(type.key().asString())
-                .orElse(null);
+        var nmsType = getNmsType(type);
 
         if (nmsType == null)
         {
@@ -132,7 +139,7 @@ public class EntityTypeUtils
                  FOX, GOAT, HORSE, LLAMA, MOOSHROOM, MULE, TRADER_LLAMA, VILLAGER,
                     OCELOT, PANDA, PIG, POLAR_BEAR, RABBIT, SNIFFER, TURTLE, WOLF,
                     HOGLIN, ZOMBIE, ZOMBIE_VILLAGER, PIGLIN, HUSK, DROWNED, ZOMBIFIED_PIGLIN, STRIDER,
-                    SKELETON_HORSE, ZOMBIE_HORSE, ZOGLIN -> true;
+                    SKELETON_HORSE, ZOMBIE_HORSE, ZOGLIN, SLIME, MAGMA_CUBE, SULFUR_CUBE -> true;
 
             default -> false;
         };

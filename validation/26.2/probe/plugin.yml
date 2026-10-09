@@ -1,0 +1,12 @@
+name: FeatherMorphUpgradeProbe
+version: '1.0'
+main: UpgradeProbe
+api-version: '26.2'
+folia-supported: true
+depend: [FeatherMorph]
+commands:
+  fmprobe:
+    permission: fmprobe.console
+permissions:
+  fmprobe.console:
+    default: op

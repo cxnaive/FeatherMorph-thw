@@ -1,6 +1,6 @@
 Archived, feel free to fork, although I would suggest making your own, as there aren't many documents about this project :D
 
-This checkout maintains Minecraft 26.2 support with Java 25 and PacketEvents 2.14.0. See [26.2 migration and Lophine compatibility](./docs/26.2-upgrade.md) for the local changes and validation.
+This checkout maintains Minecraft 26.2 support with Java 25, PacketEvents 2.14.0, and FeatherMorph command API 19. API 17 clients remain supported. See [26.2 migration and Lophine compatibility](./docs/26.2-upgrade.md) for the local changes and validation.
 
 ![cover](./assets/cover.png)
 

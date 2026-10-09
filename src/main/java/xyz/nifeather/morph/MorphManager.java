@@ -48,6 +48,7 @@ import xyz.nifeather.morph.misc.disguiseProperty.values.PlayerPropertyCollection
 import xyz.nifeather.morph.misc.permissions.CommonPermissions;
 import xyz.nifeather.morph.network.Constants;
 import xyz.nifeather.morph.network.commands.S2C.S2CUpdatePropertiesCommand;
+import xyz.nifeather.morph.network.commands.S2C.S2CDiscardPropertiesCommand;
 import xyz.nifeather.morph.network.commands.S2C.admin.reveal.S2CRemoveAdminRevealCommand;
 import xyz.nifeather.morph.network.commands.S2C.admin.reveal.S2CSyncAdminRevealCommand;
 import xyz.nifeather.morph.network.commands.S2C.set.*;
@@ -1090,7 +1091,7 @@ public class MorphManager extends MorphPluginObject implements IManagePlayerData
 
         propertyHandler.hookOnPropertyWrite((property, value) ->
         {
-            if (state.disposed()) return;
+            if (state.disposed() || property.hideFromClient()) return;
 
             // fix command not sending when player rejoins
             Player pl = player.isConnected() ? player : Bukkit.getPlayer(player.getUniqueId());
@@ -1106,6 +1107,26 @@ public class MorphManager extends MorphPluginObject implements IManagePlayerData
             }
 
             clientHandler.sendCommand(pl, new S2CUpdatePropertiesCommand(diffMap));
+        });
+
+        propertyHandler.hookOnPropertyDiscard(property ->
+        {
+            if (state.disposed() || property.hideFromClient()) return;
+            var pl = state.getPlayer();
+            if (clientHandler.getPlayerVersion(pl) >= Constants.ApiLevel.ANIMATION_DEPRECATION_AND_DISCARD_PROPERTIES_AND_TEMP_PROPERTIES.protocolVersion)
+                clientHandler.sendCommand(pl, new S2CDiscardPropertiesCommand(List.of(property.id())));
+            else
+            {
+                try
+                {
+                    var typed = (SingleProperty<Object>) property;
+                    clientHandler.sendCommand(pl, new S2CUpdatePropertiesCommand(Map.of(property.id(), typed.forValue(typed.defaultVal()))));
+                }
+                catch (ParseErrorException e)
+                {
+                    state.handleException(e);
+                }
+            }
         });
 
         // 发送提示
@@ -1196,6 +1217,8 @@ public class MorphManager extends MorphPluginObject implements IManagePlayerData
                 return;
             }
         }
+
+        state.syncAnimationToClient();
 
         //刷新主动
         state.applyCooldownToClient();

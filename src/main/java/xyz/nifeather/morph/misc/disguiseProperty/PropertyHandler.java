@@ -10,12 +10,14 @@ import xyz.nifeather.morph.messages.strings.ExceptionStrings;
 import xyz.nifeather.morph.misc.ExecutionErrorException;
 import xyz.nifeather.morph.misc.ISupportDiffs;
 import xyz.nifeather.morph.misc.actions.BiConsumerActions;
+import xyz.nifeather.morph.misc.actions.ConsumerActions;
 import xyz.nifeather.morph.misc.disguiseProperty.values.PropertyCollection;
 import xyz.nifeather.morph.utilities.ExceptionUtils;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 public class PropertyHandler
 {
@@ -26,6 +28,19 @@ public class PropertyHandler
     public <X> void hookOnPropertyWrite(BiConsumer<SingleProperty<X>, X> consumer)
     {
         actions.hook((BiConsumer) consumer);
+    }
+
+    private final ConsumerActions<SingleProperty<?>> discardActions = new ConsumerActions<>();
+
+    public void hookOnPropertyDiscard(Consumer<SingleProperty<?>> consumer)
+    {
+        discardActions.hook(consumer);
+    }
+
+    public void discardProperty(SingleProperty<?> property)
+    {
+        if (propertyMap.remove(property) != null)
+            discardActions.invoke(property);
     }
 
     public Map<String, String> toNetworkProperties()
@@ -202,5 +217,6 @@ public class PropertyHandler
     public void dispose()
     {
         actions.clear();
+        discardActions.clear();
     }
 }

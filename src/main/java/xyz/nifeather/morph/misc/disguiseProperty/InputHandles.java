@@ -658,6 +658,8 @@ public class InputHandles
                 case CHESTPLATE -> org.bukkit.inventory.EquipmentSlot.CHEST;
                 case LEGGINGS ->  org.bukkit.inventory.EquipmentSlot.LEGS;
                 case BOOTS -> org.bukkit.inventory.EquipmentSlot.FEET;
+                case BODY -> org.bukkit.inventory.EquipmentSlot.BODY;
+                case SADDLE -> org.bukkit.inventory.EquipmentSlot.SADDLE;
             };
 
             if (item != null)

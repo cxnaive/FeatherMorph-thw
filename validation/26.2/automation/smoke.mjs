@@ -28,7 +28,7 @@ assert.equal(data?.version.version, 776, 'Native 26.2 protocol data required');
 const metadataTypes = data.protocol.types.entityMetadataEntry[1].find(field => field.name === 'type').type[1].mappings;
 const run = await mkdtemp(join(tmpdir(), 'feathermorph-26.2-'));
 const report = { status: 'RUNNING', directory: run, protocol: 776, difficulty, checks: [],
-  notRun: ['rendered client visuals', 'client integration mod', 'locator connections between player disguises across regions',
+  notRun: ['rendered client visuals', 'real client integration mod', 'locator connections between player disguises across regions',
     'third-party plugins', 'all skills and abilities'] };
 console.log(`Evidence: ${run}`);
 const record = event => appendFileSync(join(run, 'packets.jsonl'), JSON.stringify({ time: Date.now(), ...event }) + '\n');
@@ -201,6 +201,82 @@ async function expectPeacefulDenial(actor, observer, type) {
   pass(`peaceful rejects ${type} while ${before.id}, preserving state/health/dimensions/packets`, after);
 }
 
+async function initializeMod(bot, version) {
+  bot.modCommands = [];
+  for (const channel of ['morphplugin:init_v3', 'morphplugin:commands_v3']) {
+    bot.client.registerChannel(channel, ['pstring', { countType: 'varint' }], true);
+    bot.client.on(channel, payload => {
+      const message = JSON.parse(payload);
+      record({ bot: bot.username, channel, message });
+      if (channel.endsWith('init_v3')) bot.modInit = message;
+      else bot.modCommands.push({ commandName: message.command_name, arguments: message.argument_map });
+    });
+  }
+  bot.client.writeChannel('morphplugin:init_v3', JSON.stringify({ api_version: version, client_features: [] }));
+  await bot.wait(`API ${version} handshake`, () => bot.modInit);
+  assert.equal(bot.modInit.api_version, version, 'Server must respond with the session API');
+  modRequest(bot, 'request_initial');
+  await bot.wait('mod initialization', () => bot.modCommands.some(c => c.commandName === 'set_boundingbox_modify_status'));
+  pass(`API ${version} actual V3 handshake and initial sync`);
+}
+
+function modRequest(bot, commandName, args = {}) {
+  bot.client.writeChannel('morphplugin:commands_v3', JSON.stringify({ command_name: commandName, argument_map: args }));
+}
+
+async function protocolProbe(bot, fixture) {
+  const offset = server.state.output.length;
+  server.command(`fmprobe ${bot.username} ${fixture}`);
+  await bot.wait(fixture, () => server.state.output.slice(offset).includes(`FM_PROBE_PROTOCOL_PASS ${bot.username} ${fixture}`));
+}
+
+async function verifyModProtocols(actor, observer) {
+  await initializeMod(actor, 19);
+  await initializeMod(observer, 17);
+  server.command('op MorphObserver');
+  server.command('fm manage grant MorphObserver minecraft:cat');
+  await delay(500);
+  for (const bot of [actor, observer]) {
+    const offset = bot.modCommands.length;
+    bot.command('/morph minecraft:cat');
+    await bot.wait('cat initial properties', () => bot.modCommands.slice(offset).some(c => c.commandName === 'update_properties'));
+    await delay(2200); // Morphing starts a forty-tick skill cooldown, which also gates actions.
+    const started = bot.modCommands.length;
+    modRequest(bot, 'request_animation', { anim: 'sit' });
+    const modern = bot === actor;
+    await bot.wait('sit animation', () => bot.modCommands.slice(started).some(c => modern
+      ? c.commandName === 'update_temp_properties' && JSON.parse(c.arguments.properties)['cat/sitting'] === 'true'
+      : c.commandName === 'play_animation' && c.arguments.anim_identifier === 'sit'));
+    const finished = bot.modCommands.length;
+    modRequest(bot, 'request_animation', { anim: 'standup' });
+    await bot.wait('standup cleanup', () => bot.modCommands.slice(finished).some(c => modern
+      ? c.commandName === 'discard_temp_properties' && JSON.parse(c.arguments.properties).includes('cat/sitting')
+      : c.commandName === 'play_animation' && c.arguments.anim_identifier === 'standup'));
+    assert(!bot.modCommands.slice(started).some(c => modern ? c.commandName === 'play_animation'
+      : ['update_temp_properties', 'discard_temp_properties', 'discard_properties'].includes(c.commandName)));
+    pass(`API ${modern ? 19 : 17} animation and reset use the matching message format`);
+
+    const equipmentOffset = bot.modCommands.length;
+    await protocolProbe(bot, 'api_equipment');
+    const equipment = await bot.wait('equipment properties', () => bot.modCommands.slice(equipmentOffset)
+      .filter(c => c.commandName === 'update_properties').map(c => JSON.parse(c.arguments.properties)['entity/equipment']).find(Boolean));
+    const slots = JSON.parse(equipment).equipmentData;
+    assert.equal(Object.hasOwn(slots, 'body'), modern);
+    assert.equal(Object.hasOwn(slots, 'saddle'), modern);
+    pass(`API ${modern ? 19 : 17} equipment serialization and BODY/SADDLE filtering`);
+
+    await protocolProbe(bot, 'api_property');
+    const discardOffset = bot.modCommands.length;
+    await protocolProbe(bot, 'api_discard');
+    await bot.wait('persistent property discard', () => bot.modCommands.slice(discardOffset).some(c => modern
+      ? c.commandName === 'discard_properties' && JSON.parse(c.arguments.properties).includes('entity/custom_name_visible')
+      : c.commandName === 'update_properties' && JSON.parse(c.arguments.properties)['entity/custom_name_visible'] === 'false'));
+    pass(`API ${modern ? 19 : 17} persistent property discard/default restoration`);
+    bot.command('/unmorph');
+    await delay(500);
+  }
+}
+
 try {
   await assertPortFree();
   const built = await exec(join(root, 'gradlew'), ['build', 'upgradeProbeJar', '--no-daemon'],
@@ -233,6 +309,7 @@ try {
   await cp(plugin, join(run, 'plugins/FeatherMorph.jar'));
   await cp(packetEvents, join(run, 'plugins/PacketEvents.jar'));
   await cp(join(root, 'build/validation/FeatherMorphUpgradeProbe.jar'), join(run, 'plugins/FeatherMorphUpgradeProbe.jar'));
+  await cp(join(seed, 'plugins/FeatherMorph/mclang'), join(run, 'plugins/FeatherMorph/mclang'), { recursive: true });
   await writeFile(join(run, 'eula.txt'), 'eula=true\n');
   const config = YAML.parse((await exec('unzip', ['-p', plugin, 'config.yml'])).stdout);
   config.root.check_update = false;
@@ -339,6 +416,7 @@ try {
     pass(`/unmorph after ${type} restores player packets`);
     await delay(300);
   }
+  await verifyModProtocols(actor, observer);
   actor.check();
   observer.check();
   report.status = 'PASS';

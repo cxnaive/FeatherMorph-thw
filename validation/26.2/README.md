@@ -22,8 +22,9 @@ lockfile; it does not patch node_modules or substitute an older protocol.
 
 The default server seed is `../thw_servers/26.2/test-server` relative to the
 FeatherMorph root. Only `server.jar`, `cache`, `libraries`, and `versions` are
-copied into a fresh temporary directory. Worlds, configs, and plugin data are
-created there. The runner listens only on `127.0.0.1:25627`, refuses an occupied
+copied into a fresh temporary directory. The cached `plugins/FeatherMorph/mclang`
+language assets are also copied to avoid online language downloads. Worlds and
+configuration are created there. The runner listens only on `127.0.0.1:25627`, refuses an occupied
 port, and stops only its own child. It writes the test server's EULA acceptance
 for the already accepted local test environment.
 
@@ -58,6 +59,12 @@ remain unchanged, and the observer must receive no entity replacement or removal
 The other nine forms still complete their morph/unmorph cycles, including sulfur
 cube, which vanilla allows in peaceful despite its monster category. The policy
 uses NMS `isAllowedInPeaceful()`, rather than a list of monster names.
+
+Both difficulty modes also perform actual FeatherMorph V3 payload handshakes
+for API 19 and API 17. They verify the negotiated API, temporary-property versus
+legacy animation messages, animation reset, BODY/SADDLE equipment
+serialization/filtering, and persistent property discard/default restoration.
+The real Fabric client tests live in `../FeatherMorphClient/validation/26.2`.
 
 The printed temporary directory retains `build.log`, `server.log`,
 `packets.jsonl`, `result.json`, worlds, and generated configuration. A failed run

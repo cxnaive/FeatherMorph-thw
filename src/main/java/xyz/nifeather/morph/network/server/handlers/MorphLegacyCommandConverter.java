@@ -24,7 +24,10 @@ public class MorphLegacyCommandConverter extends S2CCommandConverter
                 case ProtocolEquipmentSlot.CHESTPLATE -> NetheriteS2CSetFakeEquipCommand.ProtocolEquipmentSlot.CHESTPLATE;
                 case ProtocolEquipmentSlot.LEGGINGS -> NetheriteS2CSetFakeEquipCommand.ProtocolEquipmentSlot.LEGGINGS;
                 case ProtocolEquipmentSlot.BOOTS -> NetheriteS2CSetFakeEquipCommand.ProtocolEquipmentSlot.BOOTS;
+                case BODY, SADDLE -> null;
             };
+
+            if (netheriteSlot == null) return null;
 
             return new LegacySetEquipCommand(cmd.getItemStack(), netheriteSlot);
         });

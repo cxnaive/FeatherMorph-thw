@@ -6,10 +6,14 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.command.ConsoleCommandSender;
 import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Player;
+import org.bukkit.Material;
+import org.bukkit.inventory.EquipmentSlot;
+import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.lang.reflect.Proxy;
 import java.util.Set;
+import java.util.Map;
 import java.util.StringJoiner;
 import java.util.logging.Level;
 
@@ -155,6 +159,39 @@ public final class UpgradeProbe extends JavaPlugin {
                 var access = api.getClass().getMethod("directAccess").invoke(api);
                 var manager = access.getClass().getMethod("morphManager").invoke(access);
                 var state = manager.getClass().getMethod("getDisguiseStateFor", Player.class).invoke(manager, player);
+                if (args[1].startsWith("api_")) {
+                    check(state != null, "protocol fixture needs a disguise");
+                    if (args[1].equals("api_equipment")) {
+                        var equipmentClass = load("xyz.nifeather.morph.misc.DisguiseEquipment");
+                        var equipment = equipmentClass.getConstructor(Map.class).newInstance(Map.of(
+                                EquipmentSlot.BODY, new ItemStack(Material.IRON_HORSE_ARMOR),
+                                EquipmentSlot.SADDLE, new ItemStack(Material.SADDLE)));
+                        state.getClass().getMethod("setEquipment", equipmentClass).invoke(state, equipment);
+                        state.getClass().getMethod("setShowingDisguisedEquipment", boolean.class).invoke(state, true);
+                        var output = load("xyz.nifeather.morph.misc.disguiseProperty.OutputHandles")
+                                .getMethod("writeEquipment", String.class, equipmentClass).invoke(null, "entity/equipment", equipment);
+                        var decoded = (java.util.Optional<?>) load("xyz.nifeather.morph.misc.disguiseProperty.InputHandles")
+                                .getMethod("readEquipment", String.class, String.class).invoke(null, "entity/equipment", output);
+                        var copy = decoded.orElseThrow();
+                        check(((ItemStack) equipmentClass.getMethod("getItem", EquipmentSlot.class).invoke(copy, EquipmentSlot.BODY))
+                                .getType() == Material.IRON_HORSE_ARMOR, "BODY round trip");
+                        check(((ItemStack) equipmentClass.getMethod("getItem", EquipmentSlot.class).invoke(copy, EquipmentSlot.SADDLE))
+                                .getType() == Material.SADDLE, "SADDLE round trip");
+                    } else if (args[1].equals("api_refresh")) {
+                        manager.getClass().getMethod("refreshClientState", state.getClass()).invoke(manager, state);
+                    } else {
+                        var properties = state.getClass().getMethod("disguisePropertyHandler").invoke(state);
+                        var propertyClass = load("xyz.nifeather.morph.misc.disguiseProperty.SingleProperty");
+                        var registry = load("xyz.nifeather.morph.misc.disguiseProperty.DisguiseProperties").getField("INSTANCE").get(null);
+                        var property = registry.getClass().getMethod("lookup", String.class).invoke(registry, "entity/custom_name_visible");
+                        if (args[1].equals("api_discard"))
+                            properties.getClass().getMethod("discardProperty", propertyClass).invoke(properties, property);
+                        else if (args[1].equals("api_property"))
+                            properties.getClass().getMethod("set", propertyClass, Object.class).invoke(properties, property, true);
+                        else throw new AssertionError("Unknown protocol fixture " + args[1]);
+                    }
+                    getLogger().info("FM_PROBE_PROTOCOL_PASS " + player.getName() + " " + args[1]);
+                }
                 String id = state == null ? "@none" : (String) state.getClass().getMethod("getDisguiseIdentifier").invoke(state);
                 var wrapper = state == null ? null : state.getClass().getMethod("getDisguiseWrapper").invoke(state);
                 var uuid = wrapper == null ? player.getUniqueId() : wrapper.getClass().getMethod("getVirtualEntityUUID").invoke(wrapper);

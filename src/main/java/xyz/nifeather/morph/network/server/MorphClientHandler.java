@@ -1,5 +1,6 @@
 package xyz.nifeather.morph.network.server;
 
+import com.google.gson.Gson;
 import io.netty.buffer.Unpooled;
 import net.kyori.adventure.text.Component;
 import net.minecraft.network.FriendlyByteBuf;
@@ -31,6 +32,8 @@ import xyz.nifeather.morph.misc.ModNetworkingHelper;
 import xyz.nifeather.morph.misc.MorphParameters;
 import xyz.nifeather.morph.misc.PlayerWaitingHandler;
 import xyz.nifeather.morph.misc.permissions.CommonPermissions;
+import xyz.nifeather.morph.misc.disguiseProperty.PropertyNames;
+import xyz.nifeather.morph.misc.disguiseProperty.struct.MorphEquipmentStruct;
 import xyz.nifeather.morph.network.*;
 import xyz.nifeather.morph.network.commands.C2S.*;
 import xyz.nifeather.morph.network.commands.CommandRegistriesNew;
@@ -39,11 +42,14 @@ import xyz.nifeather.morph.network.commands.S2C.query.QueryType;
 import xyz.nifeather.morph.network.commands.S2C.query.S2CQueryCommand;
 import xyz.nifeather.morph.network.commands.S2C.set.S2CSetModifyBoundingBoxCommand;
 import xyz.nifeather.morph.network.commands.S2C.set.S2CSetSelfViewingStatusCommand;
+import xyz.nifeather.morph.network.commands.S2C.set.S2CSetFakeEquipCommand;
+import xyz.nifeather.morph.network.utils.ProtocolEquipmentSlot;
 import xyz.nifeather.morph.network.server.handlers.ICommandPacketHandler;
 import xyz.nifeather.morph.network.server.handlers.V3ProtocolHandler;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -53,6 +59,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 public class MorphClientHandler extends MorphPluginObject implements BasicClientHandler<Player>
 {
+    private static final Gson equipmentGson = new Gson();
     private final Bindable<Boolean> allowClient = new Bindable<>(false);
     private final Bindable<Boolean> logInComingPackets = new Bindable<>(false);
     private final Bindable<Boolean> logOutGoingPackets = new Bindable<>(false);
@@ -117,6 +124,30 @@ public class MorphClientHandler extends MorphPluginObject implements BasicClient
 
         if (!plugin.isEnabled())
             return false;
+
+        int version = getPlayerVersion(player);
+        if (version < Constants.ApiLevel.SADDLE_AND_BODY_EQUIPMENT_SLOT.protocolVersion)
+        {
+            if (basicS2CCommand instanceof S2CSetFakeEquipCommand<?> equipment
+                    && (equipment.getSlot() == ProtocolEquipmentSlot.BODY || equipment.getSlot() == ProtocolEquipmentSlot.SADDLE))
+                return false;
+
+            if (basicS2CCommand instanceof S2CUpdatePropertiesCommand properties
+                    && properties.getProperties().containsKey(PropertyNames.ENTITY_EQUIPMENT))
+            {
+                var filtered = new HashMap<>(properties.getProperties());
+                var equipment = equipmentGson.fromJson(filtered.get(PropertyNames.ENTITY_EQUIPMENT), MorphEquipmentStruct.class);
+                if (equipment.equipmentData() != null)
+                {
+                    var slots = new HashMap<>(equipment.equipmentData());
+                    slots.remove(ProtocolEquipmentSlot.BODY.toString());
+                    slots.remove(ProtocolEquipmentSlot.SADDLE.toString());
+                    filtered.put(PropertyNames.ENTITY_EQUIPMENT,
+                            equipmentGson.toJson(new MorphEquipmentStruct(equipment.dataVersion(), slots)));
+                }
+                basicS2CCommand = new S2CUpdatePropertiesCommand(filtered);
+            }
+        }
 
         getProtocolHandlerOrThrow(player).sendCommand(player, basicS2CCommand);
         return true;
@@ -376,7 +407,8 @@ public class MorphClientHandler extends MorphPluginObject implements BasicClient
         session.initializeState = InitializeState.API_CHECKED;
         session.apiVersion = clientVersion;
 
-        commandPacketHandler.sendInitializeRespond(player, this.getInitializeRespond());
+        // Clients select message semantics from this response, so report the session's API.
+        commandPacketHandler.sendInitializeRespond(player, new InitializeRespondV3(SERVER_FEATURE_FLAGS, session.apiVersion));
     }
 
     private void handleCommandV3(@NotNull String channel, @NotNull Player player, byte @NotNull [] data)

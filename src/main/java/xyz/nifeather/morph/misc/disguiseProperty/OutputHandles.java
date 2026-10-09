@@ -163,8 +163,6 @@ public class OutputHandles
         Map<String, String> stringMap = new ConcurrentHashMap<>();
         for (EquipmentSlot slot : EquipmentSlot.values())
         {
-            if (slot == EquipmentSlot.BODY || slot == EquipmentSlot.SADDLE) continue;
-
             ItemStack item = equipment.getItemOrNull(slot);
 
             if (item != null)

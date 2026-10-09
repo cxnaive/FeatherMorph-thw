@@ -33,9 +33,11 @@ import xyz.nifeather.morph.misc.waypoint.DisguiseWaypointTransmitter;
 import xyz.nifeather.morph.misc.waypoint.DummyDisguiseWaypointTransmitter;
 import xyz.nifeather.morph.misc.waypoint.IDisguiseWaypointTransmitter;
 import xyz.nifeather.morph.network.PlayerOptions;
+import xyz.nifeather.morph.network.Constants;
 import xyz.nifeather.morph.network.commands.S2C.S2CPlayAnimationCommand;
 import xyz.nifeather.morph.network.commands.S2C.set.S2CSetAnimationDisplayNameCommand;
 import xyz.nifeather.morph.network.server.MorphClientHandler;
+import xyz.nifeather.morph.network.server.AnimationPropertySync;
 import xyz.nifeather.morph.providers.animation.SingleAnimation;
 import xyz.nifeather.morph.providers.disguise.DisguiseProvider;
 import xyz.nifeather.morph.skills.ISkill;
@@ -89,13 +91,25 @@ public class DisguiseState extends MorphPluginObject
 
         this.cachedPlayer = CacheWithDefault.of(player);
 
+        clientAnimationProperties = new AnimationPropertySync(wrapper.getEntityType(), () -> getPlayer().getLocation(),
+                command ->
+                {
+                    if (usesPropertyAnimations())
+                        clientHandler.sendCommand(getPlayer(), command);
+                });
+
         animationSequence.setCooldown(10);
         animationSequence.onNewAnimation(anim ->
         {
             var animSubId = anim.subId();
 
             if (anim.availableForClient())
-                clientHandler.sendCommand(getPlayer(), new S2CPlayAnimationCommand(animSubId));
+            {
+                lastClientAnimation = animSubId;
+                clientAnimationProperties.play(animSubId);
+                if (!usesPropertyAnimations())
+                    clientHandler.sendCommand(getPlayer(), new S2CPlayAnimationCommand(animSubId));
+            }
 
             this.getDisguiseWrapper().playAnimation(animSubId);
 
@@ -124,10 +138,28 @@ public class DisguiseState extends MorphPluginObject
         });
 
         disguisePropertyHandler().hookOnPropertyWrite(this::onPropertyWrite);
+        disguisePropertyHandler().hookOnPropertyDiscard(property -> onPropertyWrite(property, property.defaultVal()));
+    }
+
+    private final AnimationPropertySync clientAnimationProperties;
+    private String lastClientAnimation;
+
+    private boolean usesPropertyAnimations()
+    {
+        return clientHandler.getPlayerVersion(getPlayer()) >= Constants.ApiLevel.ANIMATION_DEPRECATION_AND_DISCARD_PROPERTIES_AND_TEMP_PROPERTIES.protocolVersion;
+    }
+
+    public void syncAnimationToClient()
+    {
+        if (usesPropertyAnimations())
+            clientAnimationProperties.sync();
+        else if (lastClientAnimation != null)
+            clientHandler.sendCommand(getPlayer(), new S2CPlayAnimationCommand(lastClientAnimation));
     }
 
     private void onPropertyWrite(SingleProperty<?> singleProperty, Object o)
     {
+        clientAnimationProperties.onPersistentWrite(singleProperty.id());
         switch (singleProperty.id())
         {
             case PropertyNames.ENTITY_CUSTOM_NAME ->
